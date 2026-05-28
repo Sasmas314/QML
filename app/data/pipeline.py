@@ -1,21 +1,44 @@
-from .moex_loader import MOEXDataLoader
-from .validator import DataValidator
-from .preprocess import Preprocessor
+import requests
+import pandas as pd
+from datetime import datetime, timedelta
 
 
 class DataPipeline:
-    def __init__(self):
-        self.preprocessor = Preprocessor()
+    def load_from_moex(self, ticker: str, start: str, end: str, interval: int):
+        # 🔥 адаптация диапазона под частоту
+        now = datetime.now()
 
-    def load_from_moex(self, ticker: str, start: str, end: str, interval: int = 24):
-        # 1. загрузка
-        loader = MOEXDataLoader(ticker)
-        df = loader.load(start=start, end=end, interval=interval)
+        if interval <= 10:
+            start = (now - timedelta(days=5)).strftime("%Y-%m-%d")
 
-        # 2. валидация
-        DataValidator.validate(df)
+        elif interval <= 60:
+            start = (now - timedelta(days=30)).strftime("%Y-%m-%d")
 
-        # 3. нормализация
-        df_scaled = self.preprocessor.fit_transform(df)
+        # иначе оставляем как есть (дневные данные)
 
-        return df, df_scaled, self.preprocessor
+        url = f"https://iss.moex.com/iss/engines/stock/markets/shares/securities/{ticker}/candles.json"
+
+        params = {
+            "from": start,
+            "till": end,
+            "interval": interval
+        }
+
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        candles = data.get("candles", {}).get("data", [])
+        columns = data.get("candles", {}).get("columns", [])
+
+        df = pd.DataFrame(candles, columns=columns)
+
+        if df.empty:
+            return df, None, None
+
+        # 🔥 timestamp
+        df["timestamp"] = pd.to_datetime(df["begin"]).astype("int64") // 10**6
+
+        # оставляем только нужное
+        df = df[["timestamp", "close"]].dropna()
+
+        return df, None, None
