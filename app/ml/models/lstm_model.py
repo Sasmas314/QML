@@ -17,10 +17,10 @@ class LSTMNet(nn.Module):
 
 
 class LSTMModel:
-    def __init__(self, window_size=30, epochs=30):
+    def __init__(self, window_size=30, epochs=30, hidden_size=4):
         self.window_size = window_size
         self.epochs = epochs
-        self.model = LSTMNet()
+        self.model = LSTMNet(hidden_size=hidden_size)
 
         self.min = None
         self.max = None
